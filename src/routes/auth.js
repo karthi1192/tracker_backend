@@ -6,7 +6,6 @@ const router   = express.Router();
 router.get("/google", passport.authenticate("google", {
   scope: ["profile", "email", "https://www.googleapis.com/auth/calendar.readonly"],
   accessType: "offline",
-  prompt: "consent",
 }));
 
 // Google redirects here after login
