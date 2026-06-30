@@ -11,7 +11,7 @@ const app = express();
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:5173",
+  origin: process.env.FRONTEND_URL,
   credentials: true,
 }));
 app.use(express.json());
@@ -19,7 +19,7 @@ app.use(express.json());
 // ── Session (PostgreSQL store) ────────────────────────────────────────────────
 app.use(session({
   store: new connectPgStore({ pool, tableName: "sessions" }),
-  secret: process.env.SESSION_SECRET || "dhpl_secret_change_me",
+  secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: { maxAge: 7 * 24 * 60 * 60 * 1000, httpOnly: true, sameSite: "lax" },
@@ -72,5 +72,5 @@ app.use("/api/calendar",   require("./routes/calendar"));
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 // ── Start ─────────────────────────────────────────────────────────────────────
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`DHPL backend → http://localhost:${PORT}`));
+const PORT = process.env.PORT;
+app.listen(PORT, () => console.log(`DHPL backend → port ${PORT}`));
