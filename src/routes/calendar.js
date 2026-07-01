@@ -60,6 +60,27 @@ async function refreshAccessToken(refreshToken) {
   return data.access_token;
 }
 
+const DEFAULT_TIMEZONE = "Asia/Kolkata";
+
+// getHours()/getMinutes() read the server process's local timezone, which is IST on
+// localhost but UTC on Render — same instant, different displayed time. Extract the
+// wall-clock hour/minute in a fixed timezone instead so both environments agree.
+function getHourMinuteInTimezone(date, timeZone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour:   "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const hour = Number(parts.find(p => p.type === "hour").value) % 24;
+  const minute = Number(parts.find(p => p.type === "minute").value);
+  return { hour, minute };
+}
+
+function getDateInTimezone(date, timeZone) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone }).format(date); // en-CA -> YYYY-MM-DD
+}
+
 async function fetchCalendarEvents(accessToken, refreshToken, userId) {
   const now           = new Date();
   const twoWeeksLater = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
@@ -112,6 +133,12 @@ router.get("/sync", requireAuth, async (req, res) => {
       return res.status(400).json({ error: "No Google Calendar access. Please sign out and sign in again." });
     }
 
+    const { rows: configRows } = await pool.query(
+      `SELECT timezone FROM user_config WHERE user_id=$1`,
+      [req.user.id]
+    );
+    const timezone = configRows[0]?.timezone || DEFAULT_TIMEZONE;
+
     const data   = await fetchCalendarEvents(accessToken, refreshToken, req.user.id);
     const events = data.items || [];
 
@@ -121,11 +148,9 @@ router.get("/sync", requireAuth, async (req, res) => {
 
       const start     = new Date(event.start.dateTime);
       const end       = new Date(event.end?.dateTime || event.start.dateTime);
-      const date      = start.toISOString().split("T")[0];
-      const startHour = start.getHours();
-      const startMin  = start.getMinutes();
-      const endHour   = end.getHours();
-      const endMin    = end.getMinutes();
+      const date      = getDateInTimezone(start, timezone);
+      const { hour: startHour, minute: startMin } = getHourMinuteInTimezone(start, timezone);
+      const { hour: endHour, minute: endMin }     = getHourMinuteInTimezone(end, timezone);
 
       const attendees = (event.attendees || [])
         .filter(a => !a.self)

@@ -68,5 +68,6 @@ CREATE TABLE IF NOT EXISTS user_config (
   week_off_days         INT[] NOT NULL DEFAULT '{0,6}',
   water_goal            INT NOT NULL DEFAULT 8,
   hydration_on_days_off BOOLEAN DEFAULT NULL,  -- null=never asked, true=yes, false=no
+  timezone              TEXT NOT NULL DEFAULT 'Asia/Kolkata',
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
