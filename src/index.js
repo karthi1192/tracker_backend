@@ -11,7 +11,7 @@ const app = express();
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
 app.use(cors({
-  origin: process.env.FRONTEND_URL,
+  origin: process.env.FRONTEND_URL ,
   credentials: true,
 }));
 app.use(express.json());
@@ -22,7 +22,7 @@ app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000, httpOnly: true, sameSite: "lax" },
+  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000, httpOnly: true, sameSite: "none", secure: true },
 }));
 
 // ── Passport + Google OAuth ───────────────────────────────────────────────────
@@ -72,5 +72,5 @@ app.use("/api/calendar",   require("./routes/calendar"));
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 // ── Start ─────────────────────────────────────────────────────────────────────
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`DHPL backend → port ${PORT}`));
