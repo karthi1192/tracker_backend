@@ -25,7 +25,10 @@ router.get("/me", (req, res) => {
 router.post("/logout", (req, res, next) => {
   req.logout((err) => {
     if (err) return next(err);
-    res.json({ ok: true });
+    req.session.destroy(() => {
+      res.clearCookie("connect.sid");
+      res.json({ ok: true });
+    });
   });
 });
 
