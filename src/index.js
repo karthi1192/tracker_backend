@@ -9,6 +9,9 @@ const pool           = require("./db/pool");
 
 const app = express();
 
+// ── Trust Proxy (required for Render + secure cookies) ────────────────────────
+app.set("trust proxy", 1);  // ← ADD THIS LINE
+
 // ── CORS ─────────────────────────────────────────────────────────────────────
 app.use(cors({
   origin: process.env.FRONTEND_URL ,
