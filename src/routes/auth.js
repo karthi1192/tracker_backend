@@ -3,15 +3,23 @@ const passport = require("passport");
 const router   = express.Router();
 
 // Kick off Google OAuth
+// calendar.events (read/write on events) replaces the old calendar.readonly scope so
+// meeting creation can push real events + Meet links to the user's calendar. Google
+// requires one-time user consent for any scope not already granted, so returning users
+// who haven't re-authorized yet still get prompted automatically — just once, not on
+// every login — without needing prompt:"consent" forced here permanently.
 router.get("/google", passport.authenticate("google", {
-  scope: ["profile", "email", "https://www.googleapis.com/auth/calendar.readonly"],
+  scope: ["profile", "email", "https://www.googleapis.com/auth/calendar.events"],
   accessType: "offline",
 }));
 
 // Google redirects here after login
 router.get("/google/callback",
   passport.authenticate("google", { failureRedirect: `${process.env.FRONTEND_URL}?auth=failed` }),
-  (req, res) => res.redirect(process.env.FRONTEND_URL)
+  (req, res) => {
+    req.session.loginAt = Date.now();
+    res.redirect(process.env.FRONTEND_URL);
+  }
 );
 
 // Return logged-in user

@@ -1,64 +1,8 @@
 const express     = require("express");
-const https       = require("https");
 const pool        = require("../db/pool");
 const requireAuth = require("../middleware/requireAuth");
+const { fetchCalendarEvents } = require("../services/googleCalendar");
 const router      = express.Router();
-
-function httpsGet(url, headers) {
-  return new Promise((resolve, reject) => {
-    const parsed = new URL(url);
-    const options = {
-      hostname: parsed.hostname,
-      path:     parsed.pathname + parsed.search,
-      method:   "GET",
-      headers,
-    };
-    const req = https.request(options, res => {
-      let data = "";
-      res.on("data", chunk => { data += chunk; });
-      res.on("end", () => resolve({ status: res.statusCode, body: JSON.parse(data) }));
-    });
-    req.on("error", reject);
-    req.end();
-  });
-}
-
-function httpsPost(url, body) {
-  return new Promise((resolve, reject) => {
-    const parsed  = new URL(url);
-    const payload = Buffer.from(body);
-    const options = {
-      hostname: parsed.hostname,
-      path:     parsed.pathname,
-      method:   "POST",
-      headers:  {
-        "Content-Type":   "application/x-www-form-urlencoded",
-        "Content-Length": payload.length,
-      },
-    };
-    const req = https.request(options, res => {
-      let data = "";
-      res.on("data", chunk => { data += chunk; });
-      res.on("end", () => resolve({ status: res.statusCode, body: JSON.parse(data) }));
-    });
-    req.on("error", reject);
-    req.write(payload);
-    req.end();
-  });
-}
-
-async function refreshAccessToken(refreshToken) {
-  const body = new URLSearchParams({
-    client_id:     process.env.GOOGLE_CLIENT_ID,
-    client_secret: process.env.GOOGLE_CLIENT_SECRET,
-    refresh_token: refreshToken,
-    grant_type:    "refresh_token",
-  }).toString();
-
-  const { body: data } = await httpsPost("https://oauth2.googleapis.com/token", body);
-  if (!data.access_token) throw new Error("Token refresh failed");
-  return data.access_token;
-}
 
 const DEFAULT_TIMEZONE = "Asia/Kolkata";
 
@@ -81,45 +25,6 @@ function getDateInTimezone(date, timeZone) {
   return new Intl.DateTimeFormat("en-CA", { timeZone }).format(date); // en-CA -> YYYY-MM-DD
 }
 
-async function fetchCalendarEvents(accessToken, refreshToken, userId) {
-  const now           = new Date();
-  const twoWeeksLater = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
-  // Start of day 4 days ago — ensures Friday 00:00 is always included even on Monday afternoon
-  const fromDate      = new Date(now);
-  fromDate.setDate(fromDate.getDate() - 4);
-  fromDate.setHours(0, 0, 0, 0);
-
-  const params = new URLSearchParams({
-    timeMin:      fromDate.toISOString(),
-    timeMax:      twoWeeksLater.toISOString(),
-    singleEvents: "true",
-    orderBy:      "startTime",
-    maxResults:   "100",
-  }).toString();
-
-  let token = accessToken;
-  let result = await httpsGet(
-    `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`,
-    { Authorization: `Bearer ${token}` }
-  );
-
-  // Token expired — refresh and retry once
-  if (result.status === 401 && refreshToken) {
-    token = await refreshAccessToken(refreshToken);
-    await pool.query(`UPDATE users SET google_access_token=$1 WHERE id=$2`, [token, userId]);
-    result = await httpsGet(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`,
-      { Authorization: `Bearer ${token}` }
-    );
-  }
-
-  if (result.status !== 200) {
-    throw new Error(result.body?.error?.message || "Google Calendar API error");
-  }
-
-  return result.body;
-}
-
 // GET /api/calendar/sync
 router.get("/sync", requireAuth, async (req, res) => {
   try {
@@ -129,17 +34,13 @@ router.get("/sync", requireAuth, async (req, res) => {
     );
     const { google_access_token: accessToken, google_refresh_token: refreshToken } = rows[0] || {};
 
-    if (!accessToken) {
-      return res.status(400).json({ error: "No Google Calendar access. Please sign out and sign in again." });
-    }
-
     const { rows: configRows } = await pool.query(
       `SELECT timezone FROM user_config WHERE user_id=$1`,
       [req.user.id]
     );
     const timezone = configRows[0]?.timezone || DEFAULT_TIMEZONE;
 
-    const data   = await fetchCalendarEvents(accessToken, refreshToken, req.user.id);
+    const data   = await fetchCalendarEvents(req.user.id, accessToken, refreshToken);
     const events = data.items || [];
 
     let synced = 0;
@@ -188,7 +89,7 @@ router.get("/sync", requireAuth, async (req, res) => {
     res.json({ synced, total: events.length });
   } catch (err) {
     console.error("Calendar sync error:", err.message);
-    res.status(500).json({ error: err.message });
+    res.status(err.status || 500).json({ error: err.message });
   }
 });
 

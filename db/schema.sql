@@ -23,6 +23,10 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE INDEX IF NOT EXISTS sessions_expire_idx ON sessions (expire);
 
 -- ── Tasks ────────────────────────────────────────────────────────────────────
+-- NOTE: scheduled_hour, scheduled_min, and timer_started_at are used by
+-- src/routes/tasks.js but were missing from this file before reopen_reason was
+-- added — they exist on the live DB but were never captured here. Add them
+-- here too if this schema is ever used to provision a fresh database.
 CREATE TABLE IF NOT EXISTS tasks (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id          UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -32,9 +36,11 @@ CREATE TABLE IF NOT EXISTS tasks (
   elapsed_seconds  INT NOT NULL DEFAULT 0,
   status           TEXT NOT NULL DEFAULT 'not_started'
                    CHECK (status IN ('not_started','paused','completed')),
+  reopen_reason    TEXT,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS tasks_user_date_idx ON tasks (user_id, date);
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS reopen_reason TEXT;
 
 -- ── Meetings ─────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS meetings (

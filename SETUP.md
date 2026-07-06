@@ -55,4 +55,3 @@ then run the Vite dev server as usual (npm run dev → http://localhost:5173)
 | POST | /api/meetings | Add meeting |
 | GET | /api/hydration?date=DATE | Get water count |
 | POST | /api/hydration/increment | Add one glass |
-| GET | /api/holidays?year=2026 | Get holidays |

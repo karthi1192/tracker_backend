@@ -8,7 +8,7 @@ router.get("/", requireAuth, async (req, res) => {
   const { date } = req.query;
   if (!date) return res.status(400).json({ error: "date required" });
   const { rows } = await pool.query(
-    `SELECT id, title, priority, date, elapsed_seconds, status, scheduled_hour, scheduled_min, created_at, timer_started_at
+    `SELECT id, title, priority, date, elapsed_seconds, status, scheduled_hour, scheduled_min, created_at, timer_started_at, reopen_reason
      FROM tasks WHERE user_id = $1 AND date = $2 ORDER BY created_at`,
     [req.user.id, date]
   );
@@ -28,11 +28,17 @@ router.post("/", requireAuth, async (req, res) => {
 
 // PATCH /api/tasks/:id
 router.patch("/:id", requireAuth, async (req, res) => {
-  const { elapsed_seconds, status, timer_started_at } = req.body;
+  const { elapsed_seconds, status, timer_started_at, title, priority, date, scheduled_hour, scheduled_min, reopen_reason } = req.body;
   const fields = [], vals = [];
   if (elapsed_seconds   !== undefined) { fields.push(`elapsed_seconds=$${fields.length+1}`);   vals.push(elapsed_seconds); }
   if (status            !== undefined) { fields.push(`status=$${fields.length+1}`);             vals.push(status); }
   if (timer_started_at  !== undefined) { fields.push(`timer_started_at=$${fields.length+1}`);   vals.push(timer_started_at); }
+  if (title             !== undefined) { fields.push(`title=$${fields.length+1}`);              vals.push(title); }
+  if (priority          !== undefined) { fields.push(`priority=$${fields.length+1}`);           vals.push(priority); }
+  if (date              !== undefined) { fields.push(`date=$${fields.length+1}`);               vals.push(date); }
+  if (scheduled_hour    !== undefined) { fields.push(`scheduled_hour=$${fields.length+1}`);     vals.push(scheduled_hour); }
+  if (scheduled_min     !== undefined) { fields.push(`scheduled_min=$${fields.length+1}`);       vals.push(scheduled_min); }
+  if (reopen_reason     !== undefined) { fields.push(`reopen_reason=$${fields.length+1}`);       vals.push(reopen_reason); }
   if (!fields.length) return res.status(400).json({ error: "nothing to update" });
   vals.push(req.params.id, req.user.id);
   const { rows } = await pool.query(

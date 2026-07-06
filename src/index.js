@@ -20,12 +20,17 @@ app.use(cors({
 app.use(express.json());
 
 // ── Session (PostgreSQL store) ────────────────────────────────────────────────
+// Idle timeout: rolling cookie means each request resets the 30-min countdown, both
+// client-side (cookie) and server-side (connect-pg-simple's `expire` column via touch()).
+// No requests for 30 min → the session is no longer valid, regardless of tab state.
+const SESSION_IDLE_MS = 30 * 60 * 1000;
 app.use(session({
   store: new connectPgStore({ pool, tableName: "sessions" }),
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000, httpOnly: true, sameSite: process.env.RENDER ? "none" : "lax", secure: !!process.env.RENDER },
+  rolling: true,
+  cookie: { maxAge: SESSION_IDLE_MS, httpOnly: true, sameSite: process.env.RENDER ? "none" : "lax", secure: !!process.env.RENDER },
 }));
 
 // ── Passport + Google OAuth ───────────────────────────────────────────────────
@@ -63,6 +68,7 @@ passport.deserializeUser(async (id, done) => {
 
 app.use(passport.initialize());
 app.use(passport.session());
+app.use(require("./middleware/sessionExpiry"));
 
 // ── Routes ───────────────────────────────────────────────────────────────────
 app.use("/auth",          require("./routes/auth"));
